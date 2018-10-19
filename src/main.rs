@@ -6,6 +6,8 @@ use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, RenderTarget, TextureCreator};
 
+use std::{thread, time};
+
 fn is_facing_right(angle: f64) -> bool {
     angle.cos() > 0.0
 }
@@ -40,6 +42,9 @@ fn dist(x1:i32, y1:i32, x2:i32, y2:i32) -> f64{
 
 
 struct World {
+    y: i32,
+    x: i32,
+    angle: f64,
     layout: Vec<Vec<i32>>,
     grid_size: i32,
     heights: Vec<i32>,
@@ -49,20 +54,23 @@ struct World {
 impl World {
     fn new() -> World {
         let layout = vec![
-                        vec![1, 1, 1, 1, 1],
-                        vec![1, 0, 0, 0, 1],
-                        vec![1, 0, 1, 0, 1],
-                        vec![1, 0, 0, 0, 1],
-                        vec![1, 0, 0, 0, 1],
-                        vec![1, 1, 1, 1, 1]
-                    ];
-        World {
-            grid_size: 64,
-            layout: layout,
-            // FIXME: 320 is hardcoded.
-            heights: vec![0; 320],
-            colors:  vec![0; 320],
-        }
+            vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            vec![1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1],
+            vec![1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+            vec![1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+            vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ];
+            World {
+                x: 3 * 64 + 32,
+                y: 3 * 64 + 32,
+                angle: 60.0_f64.to_radians(),
+                grid_size: 64,
+                layout: layout,
+                // FIXME: 320 is hardcoded.
+                heights: vec![0; 320],
+                colors:  vec![0; 320],
+            }
     }
 
     fn get_grid_values(&self, x: i32, y: i32) -> (i32, i32) {
@@ -96,7 +104,7 @@ impl World {
             return (1000000, 10000000); // INF;
         }
 
-        let mut Ay: i32 = if is_facing_up(angle) { 
+        let mut Ay: i32 = if is_facing_up(angle) {
             (y/self.grid_size) * (self.grid_size) - 1
         } else {
             (y/self.grid_size) * (self.grid_size) + self.grid_size
@@ -112,10 +120,10 @@ impl World {
             (self.grid_size as i32)
         };
 
-        let mut Xa:i32 = if is_facing_right(angle) {
+        let mut Xa:i32 = if y-Ay > 0 {
             base(self.grid_size, angle)
         } else {
-            -1 * base(self.grid_size, angle)
+            base(-1 * self.grid_size, angle)
         };
 
         while !self.is_wall_grid(Agx, Agy) {
@@ -124,12 +132,7 @@ impl World {
             let grid_coordinates = self.get_grid_values(Ax, Ay);
             Agx = grid_coordinates.0;
             Agy = grid_coordinates.1;
-
-            if Agx < 0 || Agy < 0 {
-                return (1000000, 1000000); // INF
-            }
         }
-
         (Ax, Ay)
     }
 
@@ -139,8 +142,7 @@ impl World {
             return (1000000, 10000000); // INF;
         }
 
-        // TODO: handle vertical line case.
-        let mut Ax: i32 = if is_facing_right(angle) { 
+        let mut Ax: i32 = if is_facing_right(angle) {
             (x/self.grid_size) * (self.grid_size) + self.grid_size
         } else {
             (x/self.grid_size) * (self.grid_size) -1
@@ -149,17 +151,16 @@ impl World {
         let mut Ay: i32 = y + perp(x-Ax, angle);
         let (mut Agx, mut Agy) = self.get_grid_values(Ax, Ay);
 
-
         let mut Xa:i32 = if is_facing_right(angle) {
             (self.grid_size as i32)
         } else {
             -1 * (self.grid_size as i32)
         };
 
-        let mut Ya:i32 = if is_facing_up(angle) {
-            -1 * perp(self.grid_size, angle)
-        } else {
+        let mut Ya:i32 = if x-Ax > 0 {
             perp(self.grid_size, angle)
+        } else {
+            -1 * perp(self.grid_size, angle)
         };
 
         while !self.is_wall_grid(Agx, Agy) {
@@ -168,12 +169,7 @@ impl World {
             let grid_coordinates = self.get_grid_values(Ax, Ay);
             Agx = grid_coordinates.0;
             Agy = grid_coordinates.1;
-
-            if Agx < 0 || Agy < 0 {
-                return (1000000, 1000000); // INF
-            }
         }
-
         (Ax, Ay)
     }
 
@@ -182,11 +178,11 @@ impl World {
         let pi_by_2 = std::f64::consts::PI / 2.0;
 
 
-        let x = 96;
-        let y = 224;
+        let x = self.x;
+        let y = self.y;
 
         for i in 0..320 {
-            let angle = pi_by_3 + pi_by_3 * (i as f64 / 320.0);
+            let angle = self.angle + pi_by_3 * (i as f64 / 320.0);
             let (hx, hy) = self.calc_horizontal_intersection(x, y, angle);
             let (vx, vy) = self.calc_vertical_intersection(x, y, angle);
 
@@ -202,12 +198,7 @@ impl World {
             }
 
             // Correct for fish eye.
-            let beta = pi_by_2 - angle;
-
-            println!("{} ", angle.to_degrees());
-            println!("hx hy: {} {}", hx, hy);
-            println!("vx vy: {} {}", vx, vy);
-            println!("d: {}", d);
+            let beta = (self.angle + pi_by_3 / 2.0) - angle;
 
             d = d * beta.cos();
 
@@ -240,39 +231,6 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let mut w = World::new();
-    w.update_heights();
-
-    canvas.set_draw_color(Color::RGB(128,128,128));
-    canvas.fill_rect(
-        Rect::new(0, 0, 320, 220)    
-    );
-    canvas.set_draw_color(Color::RGB(68,68,68));
-    canvas.fill_rect(
-        Rect::new(0, 220, 320, 220)    
-    );
-
-
-    for i in 0..320 {
-        let h = w.heights[i];
-
-        let rect = Rect::new(
-            319 - i as i32,
-            220 - (h / 2),
-            1,
-            h as u32
-        );
-
-
-        if (w.colors[i] == 0) {
-            canvas.set_draw_color(Color::RGB(200,0,0));
-        } else {
-            canvas.set_draw_color(Color::RGB(255,0,0));
-        }
-        canvas.fill_rect(rect);
-
-    }
-
-    canvas.present();
 
     'running: loop {
 
@@ -281,12 +239,65 @@ fn main() {
                 Event::Quit {..} | Event::KeyDown {keycode: Some(Keycode::Escape), ..} => {
                     break 'running
                 }
+                Event::KeyDown {keycode: Some(Keycode::Left), ..} => {
+                    w.x -= 1;
+                }
+                Event::KeyDown {keycode: Some(Keycode::Right), ..} => {
+                    w.x += 1;
+                }
+                Event::KeyDown {keycode: Some(Keycode::Up), ..} => {
+                    w.y -= 1;
+                }
+                Event::KeyDown {keycode: Some(Keycode::Down), ..} => {
+                    w.y += 1;
+                }
+                Event::KeyDown {keycode: Some(Keycode::Q), ..} => {
+                    w.angle += std::f64::consts::PI / 360.0;
+                }
+                Event::KeyDown {keycode: Some(Keycode::E), ..} => {
+                    w.angle -= std::f64::consts::PI / 360.0;
+                }
                 _ => {}
             }
         }
 
-        // Add a sleep here.
-        
+        w.update_heights();
+        canvas.set_draw_color(Color::RGB(128,128,128));
+        canvas.fill_rect(
+            Rect::new(0, 0, 320, 220)    
+            );
+        canvas.set_draw_color(Color::RGB(68,68,68));
+        canvas.fill_rect(
+            Rect::new(0, 220, 320, 220)    
+            );
+
+
+        for i in 0..320 {
+            let h = w.heights[i];
+
+            let rect = Rect::new(
+                319 - i as i32,
+                220 - (h / 2),
+                1,
+                h as u32
+                );
+
+
+            if (w.colors[i] == 0) {
+                canvas.set_draw_color(Color::RGB(200,0,0));
+            } else {
+                canvas.set_draw_color(Color::RGB(255,0,0));
+            }
+            canvas.fill_rect(rect);
+
+        }
+
+        canvas.present();
+
+        let ten_millis = time::Duration::from_millis(100);
+        thread::sleep(ten_millis);
+
+
     }
 
 }
