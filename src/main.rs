@@ -1,7 +1,10 @@
-struct World {
-    layout: Vec<Vec<i32>>,
-    grid_size: i32,
-}
+extern crate sdl2;
+
+use sdl2::event::Event;
+use sdl2::keyboard::{Keycode, Scancode};
+use sdl2::pixels::Color;
+use sdl2::rect::Rect;
+use sdl2::render::{Canvas, RenderTarget, TextureCreator};
 
 fn is_facing_right(angle: f64) -> bool {
     angle.cos() > 0.0
@@ -27,13 +30,28 @@ fn perp(base: i32, angle:f64) -> i32 {
     (base as f64 * angle.tan()) as i32
 }
 
+fn dist(x1:i32, y1:i32, x2:i32, y2:i32) -> f64{
+    let x: f64 = (x2 - x1) as f64;
+    let y: f64 = (y2 - y1) as f64;
+
+    (x*x + y*y).sqrt()
+
+}
+
+
+struct World {
+    layout: Vec<Vec<i32>>,
+    grid_size: i32,
+    heights: Vec<i32>,
+    colors: Vec<i32>,
+}
 
 impl World {
     fn new() -> World {
         let layout = vec![
                         vec![1, 1, 1, 1, 1],
                         vec![1, 0, 0, 0, 1],
-                        vec![1, 0, 0, 0, 1],
+                        vec![1, 0, 1, 0, 1],
                         vec![1, 0, 0, 0, 1],
                         vec![1, 0, 0, 0, 1],
                         vec![1, 1, 1, 1, 1]
@@ -41,6 +59,9 @@ impl World {
         World {
             grid_size: 64,
             layout: layout,
+            // FIXME: 320 is hardcoded.
+            heights: vec![0; 320],
+            colors:  vec![0; 320],
         }
     }
 
@@ -105,12 +126,10 @@ impl World {
             Agy = grid_coordinates.1;
 
             if Agx < 0 || Agy < 0 {
-                println!("INF");
                 return (1000000, 1000000); // INF
             }
         }
 
-        println!("{} {}", Ax, Ay);
         (Ax, Ay)
     }
 
@@ -151,33 +170,124 @@ impl World {
             Agy = grid_coordinates.1;
 
             if Agx < 0 || Agy < 0 {
-                println!("INF");
                 return (1000000, 1000000); // INF
             }
         }
 
-        println!("{} {}", Ax, Ay);
         (Ax, Ay)
     }
 
-}
+    fn update_heights(&mut self) {
+        let pi_by_3 = std::f64::consts::PI / 3.0;
+        let pi_by_2 = std::f64::consts::PI / 2.0;
 
-/*
-fn main() {
-    let w = World::new();
-    println!("Starting Test");
 
-    let x = 96;
-    let y = 224;
+        let x = 96;
+        let y = 224;
 
-    for i in 0..360 {
-        let pi = std::f64::consts::PI;
-        let angle = (i as f64/360.0) * 2.0 * pi;
-        println!("angle: {}", angle.to_degrees());
-        let (hx, hy) = w.calc_horizontal_intersection(x, y, angle);
-        let (vx, vy) = w.calc_vertical_intersection(x, y, angle);
+        for i in 0..320 {
+            let angle = pi_by_3 + pi_by_3 * (i as f64 / 320.0);
+            let (hx, hy) = self.calc_horizontal_intersection(x, y, angle);
+            let (vx, vy) = self.calc_vertical_intersection(x, y, angle);
+
+            let hd = dist(x, y, hx, hy);
+            let vd = dist(x, y, vx, vy);
+
+            let mut d = hd.min(vd);
+
+            if hd > vd {
+                self.colors[i] = 1;
+            } else {
+                self.colors[i] = 0;
+            }
+
+            // Correct for fish eye.
+            let beta = pi_by_2 - angle;
+
+            println!("{} ", angle.to_degrees());
+            println!("hx hy: {} {}", hx, hy);
+            println!("vx vy: {} {}", vx, vy);
+            println!("d: {}", d);
+
+            d = d * beta.cos();
+
+            let h = 64.0 / d * 255.0;
+
+            self.heights[i] = h as i32;
+
+
+        }
     }
 
 }
-*/
+
+fn main() {
+
+    let width = 320;
+    let height = 440;
+
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+
+    let window = video_subsystem.window("Rust Ray Casting", width, height)
+        .position_centered()
+        .opengl()
+        .build()
+        .unwrap();
+
+    let mut canvas = window.into_canvas().build().unwrap();
+    let texture_creator = canvas.texture_creator();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+
+    let mut w = World::new();
+    w.update_heights();
+
+    canvas.set_draw_color(Color::RGB(128,128,128));
+    canvas.fill_rect(
+        Rect::new(0, 0, 320, 220)    
+    );
+    canvas.set_draw_color(Color::RGB(68,68,68));
+    canvas.fill_rect(
+        Rect::new(0, 220, 320, 220)    
+    );
+
+
+    for i in 0..320 {
+        let h = w.heights[i];
+
+        let rect = Rect::new(
+            319 - i as i32,
+            220 - (h / 2),
+            1,
+            h as u32
+        );
+
+
+        if (w.colors[i] == 0) {
+            canvas.set_draw_color(Color::RGB(200,0,0));
+        } else {
+            canvas.set_draw_color(Color::RGB(255,0,0));
+        }
+        canvas.fill_rect(rect);
+
+    }
+
+    canvas.present();
+
+    'running: loop {
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit {..} | Event::KeyDown {keycode: Some(Keycode::Escape), ..} => {
+                    break 'running
+                }
+                _ => {}
+            }
+        }
+
+        // Add a sleep here.
+        
+    }
+
+}
 
