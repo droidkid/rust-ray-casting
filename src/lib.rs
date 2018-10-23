@@ -19,25 +19,24 @@ fn is_horizontal_angle(angle: f64) -> bool {
     }
 }
 
-fn base(perp: i32, angle:f64) -> i32 {
+fn base(perp: i32, angle: f64) -> i32 {
     (perp as f64 / angle.tan()) as i32
 }
 
-fn perp(base: i32, angle:f64) -> i32 {
+fn perp(base: i32, angle: f64) -> i32 {
     (base as f64 * angle.tan()) as i32
 }
-
 
 impl World {
     fn new() -> World {
         let layout = vec![
-                        vec![1, 1, 1, 1, 1],
-                        vec![1, 0, 0, 0, 1],
-                        vec![1, 0, 0, 0, 1],
-                        vec![1, 0, 0, 0, 1],
-                        vec![1, 0, 0, 0, 1],
-                        vec![1, 1, 1, 1, 1]
-                    ];
+            vec![1, 1, 1, 1, 1],
+            vec![1, 0, 0, 0, 1],
+            vec![1, 0, 0, 0, 1],
+            vec![1, 0, 0, 0, 1],
+            vec![1, 0, 0, 0, 1],
+            vec![1, 1, 1, 1, 1],
+        ];
         World {
             grid_size: 64,
             layout: layout,
@@ -54,7 +53,7 @@ impl World {
             y = y - self.grid_size;
         }
 
-        ( x / self.grid_size , y / self.grid_size )
+        (x / self.grid_size, y / self.grid_size)
     }
 
     fn is_wall_grid(&self, x: i32, y: i32) -> bool {
@@ -69,29 +68,27 @@ impl World {
         self.layout[y as usize][x as usize] == 1
     }
 
-    fn calc_horizontal_intersection(&self, x: i32, y:i32, angle: f64) -> (i32, i32) {
-
-        if (1.0/angle.tan()).abs() > 100000000.0 {
+    fn calc_horizontal_intersection(&self, x: i32, y: i32, angle: f64) -> (i32, i32) {
+        if (1.0 / angle.tan()).abs() > 100000000.0 {
             return (1000000, 10000000); // INF;
         }
 
-        let mut Ay: i32 = if is_facing_up(angle) { 
-            (y/self.grid_size) * (self.grid_size) - 1
+        let mut Ay: i32 = if is_facing_up(angle) {
+            (y / self.grid_size) * (self.grid_size) - 1
         } else {
-            (y/self.grid_size) * (self.grid_size) + self.grid_size
+            (y / self.grid_size) * (self.grid_size) + self.grid_size
         };
 
-        let mut Ax: i32 = x + base(y-Ay, angle);
+        let mut Ax: i32 = x + base(y - Ay, angle);
         let (mut Agx, mut Agy) = self.get_grid_values(Ax, Ay);
 
-
-        let mut Ya:i32 = if is_facing_up(angle) {
+        let mut Ya: i32 = if is_facing_up(angle) {
             -(self.grid_size as i32)
         } else {
             (self.grid_size as i32)
         };
 
-        let mut Xa:i32 = if is_facing_right(angle) {
+        let mut Xa: i32 = if is_facing_right(angle) {
             base(self.grid_size, angle)
         } else {
             -1 * base(self.grid_size, angle)
@@ -114,30 +111,28 @@ impl World {
         (Ax, Ay)
     }
 
-    fn calc_vertical_intersection(&self, x: i32, y:i32, angle: f64) -> (i32, i32) {
-
+    fn calc_vertical_intersection(&self, x: i32, y: i32, angle: f64) -> (i32, i32) {
         if angle.tan().abs() > 100000000.0 {
             return (1000000, 10000000); // INF;
         }
 
         // TODO: handle vertical line case.
-        let mut Ax: i32 = if is_facing_right(angle) { 
-            (x/self.grid_size) * (self.grid_size) + self.grid_size
+        let mut Ax: i32 = if is_facing_right(angle) {
+            (x / self.grid_size) * (self.grid_size) + self.grid_size
         } else {
-            (x/self.grid_size) * (self.grid_size) -1
+            (x / self.grid_size) * (self.grid_size) - 1
         };
 
-        let mut Ay: i32 = y + perp(x-Ax, angle);
+        let mut Ay: i32 = y + perp(x - Ax, angle);
         let (mut Agx, mut Agy) = self.get_grid_values(Ax, Ay);
 
-
-        let mut Xa:i32 = if is_facing_right(angle) {
+        let mut Xa: i32 = if is_facing_right(angle) {
             (self.grid_size as i32)
         } else {
             -1 * (self.grid_size as i32)
         };
 
-        let mut Ya:i32 = if is_facing_up(angle) {
+        let mut Ya: i32 = if is_facing_up(angle) {
             -1 * perp(self.grid_size, angle)
         } else {
             perp(self.grid_size, angle)
@@ -159,7 +154,6 @@ impl World {
         println!("{} {}", Ax, Ay);
         (Ax, Ay)
     }
-
 }
 
 /*
@@ -180,4 +174,3 @@ fn main() {
 
 }
 */
-
