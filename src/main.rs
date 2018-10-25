@@ -5,6 +5,8 @@ use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, RenderTarget, TextureCreator};
+use sdl2::image::{LoadTexture, INIT_PNG, INIT_JPG};
+use std::path::Path;
 
 use std::{thread, time};
 
@@ -52,7 +54,8 @@ struct World {
     minimap: Vec<Vec<i32>>,
     grid_size: f64,
     heights: Vec<i32>,
-    colors: Vec<i32>,
+    edge_dist: Vec<i32>,
+    wall_orient: Vec<i32>,
 }
 
 impl World {
@@ -100,7 +103,8 @@ impl World {
             layout: layout,
             minimap: minimap,
             heights: vec![0; 800],
-            colors: vec![0; 800],
+            edge_dist: vec![0; 800],
+            wall_orient: vec![0; 800],
         }
     }
 
@@ -224,13 +228,20 @@ impl World {
             let vd = dist(x, y, vx, vy);
 
             let mut d = hd.min(vd);
-            self.colors[i as usize] = 255 * 100 / d as i32;
 
             let beta = (self.angle - self.fov_angle/2.0 + pi_by_3 / 2.0) - (angle);
             d = d * beta.cos();
 
             let h = self.grid_size / d * self.projection_width as f64;
             self.heights[i as usize] = h as i32;
+
+            if hd < vd {
+                self.wall_orient[i as usize] = 1;
+                self.edge_dist[i as usize] = (hx as i32) % (self.grid_size as i32)
+            } else {
+                self.wall_orient[i as usize] = 2;
+                self.edge_dist[i as usize] = (vy as i32) % (self.grid_size as i32)
+            };
         }
     }
 }
@@ -241,19 +252,28 @@ fn main() {
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
+    let _image_context = sdl2::image::init(INIT_PNG | INIT_JPG).unwrap();
 
     let window = video_subsystem
         .window("Rust Ray Casting", width, height)
         .position_centered()
-        .opengl()
         .build()
         .unwrap();
 
-    let mut canvas = window.into_canvas().build().unwrap();
-    let texture_creator = canvas.texture_creator();
+    let mut canvas = window.into_canvas().software().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
+    let texture_creator = canvas.texture_creator();
 
     let mut w = World::new();
+
+    let wall1_texture_path = Path::new("res/bg_wood.png");
+    let texture1 = texture_creator.load_texture(&wall1_texture_path).unwrap();
+    let wall2_texture_path = Path::new("res/bg_red.png");
+    let texture2 = texture_creator.load_texture(&wall2_texture_path).unwrap();
+    let rifle_texture_path = Path::new("res/rifle.png");
+    let rifleTexture = texture_creator.load_texture(&rifle_texture_path).unwrap();
+
+    let mut mouse_x: i32 = 0;
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -291,35 +311,39 @@ fn main() {
                     w.y += 3.0 * w.angle.sin();
                     w.x -= 3.0 * w.angle.cos();
                 }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Q),
-                    ..
-                } => {
-                    w.angle += std::f64::consts::PI / 120.0;
+                Event::MouseMotion {x, ..} => {
+                    let dx = mouse_x-x;
+                    mouse_x = x;
+
+                    w.angle += (dx as f64 / 300.0) * std::f64::consts::PI;
                 }
-                Event::KeyDown {
-                    keycode: Some(Keycode::E),
-                    ..
-                } => {
-                    w.angle -= std::f64::consts::PI / 120.0;
-                }
+
                 _ => {}
             }
         }
 
         w.update_heights();
 
-        canvas.set_draw_color(Color::RGB(128, 128, 128));
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.fill_rect(Rect::new(0, 0, 800, 300));
-        canvas.set_draw_color(Color::RGB(68, 68, 68));
+        canvas.set_draw_color(Color::RGB(168, 100, 100));
         canvas.fill_rect(Rect::new(0, 300, 800, 300));
 
         for i in 0..w.projection_width {
             let h = w.heights[i as usize];
-            let rect = Rect::new(799 - i as i32, 300 - (h / 2), 1, h as u32);
-            canvas.set_draw_color(Color::RGB(w.colors[i as usize] as u8, 0, 0));
-            canvas.fill_rect(rect);
+            let dest_rect = Rect::new(799 - i as i32, 300 - (h / 2), 1, h as u32);
+            let src_rect = Rect::new(w.edge_dist[i as usize] * 4, 0, 1, 512); 
+
+            if w.wall_orient[i as usize] == 2 {
+                canvas.copy(&texture1, src_rect, dest_rect);
+            }
+            if w.wall_orient[i as usize] == 1 {
+                canvas.copy(&texture2, src_rect, dest_rect);
+            }
         }
+
+        let rifle_rect = Rect::new(400-40, 400, 85, 200); 
+        canvas.copy(&rifleTexture, None, rifle_rect);
 
         let mut mx = 500;
         let mut my = 0;
@@ -327,13 +351,12 @@ fn main() {
         for i in 0..w.minimap.len() {
             for j in 0..w.minimap[i].len() {
                 let rect = Rect::new(mx, my, 5, 5);
-
                 if w.minimap[i][j] == 0 {
                     canvas.set_draw_color(Color::RGB(64, 64, 64));
                 } else if w.minimap[i][j] == 1 {
-                    canvas.set_draw_color(Color::RGB(120, 0, 0));
+                    canvas.set_draw_color(Color::RGB(120, 120, 120));
                 } else if w.minimap[i][j] == 2 {
-                    canvas.set_draw_color(Color::RGB(220, 220, 220));
+                    canvas.set_draw_color(Color::RGB(220, 120, 120));
                 }
                 mx += 5;
                 canvas.fill_rect(rect);
