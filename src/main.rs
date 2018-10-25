@@ -284,28 +284,28 @@ fn main() {
                     ..
                 } => break 'running,
                 Event::KeyDown {
-                    keycode: Some(Keycode::Left),
+                    keycode: Some(Keycode::A),
                     ..
                 } => {
                     w.x -= 3.0 * w.angle.sin();
                     w.y -= 3.0 * w.angle.cos();
                 }
                 Event::KeyDown {
-                    keycode: Some(Keycode::Right),
+                    keycode: Some(Keycode::D),
                     ..
                 } => {
                     w.x += 3.0 * w.angle.sin();
                     w.y += 3.0 * w.angle.cos();
                 }
                 Event::KeyDown {
-                    keycode: Some(Keycode::Up),
+                    keycode: Some(Keycode::W),
                     ..
                 } => {
                     w.y -= 3.0 * w.angle.sin();
                     w.x += 3.0 * w.angle.cos();
                 }
                 Event::KeyDown {
-                    keycode: Some(Keycode::Down),
+                    keycode: Some(Keycode::S),
                     ..
                 } => {
                     w.y += 3.0 * w.angle.sin();
