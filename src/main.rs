@@ -257,12 +257,16 @@ fn main() {
     let window = video_subsystem
         .window("Rust Ray Casting", width, height)
         .position_centered()
+        .borderless()
+        .fullscreen()
         .build()
         .unwrap();
 
     let mut canvas = window.into_canvas().software().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
     let texture_creator = canvas.texture_creator();
+
+    sdl_context.mouse().show_cursor(false);
 
     let mut w = World::new();
 
@@ -272,6 +276,8 @@ fn main() {
     let texture2 = texture_creator.load_texture(&wall2_texture_path).unwrap();
     let rifle_texture_path = Path::new("res/rifle.png");
     let rifleTexture = texture_creator.load_texture(&rifle_texture_path).unwrap();
+    let crosshair_path = Path::new("res/crosshair_red_small.png");
+    let crosshair = texture_creator.load_texture(&crosshair_path).unwrap();
 
     let mut mouse_x: i32 = 0;
 
@@ -287,29 +293,29 @@ fn main() {
                     keycode: Some(Keycode::A),
                     ..
                 } => {
-                    w.x -= 3.0 * w.angle.sin();
-                    w.y -= 3.0 * w.angle.cos();
+                    w.x -= 6.0 * w.angle.sin();
+                    w.y -= 6.0 * w.angle.cos();
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::D),
                     ..
                 } => {
-                    w.x += 3.0 * w.angle.sin();
-                    w.y += 3.0 * w.angle.cos();
+                    w.x += 6.0 * w.angle.sin();
+                    w.y += 6.0 * w.angle.cos();
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::W),
                     ..
                 } => {
-                    w.y -= 3.0 * w.angle.sin();
-                    w.x += 3.0 * w.angle.cos();
+                    w.y -= 6.0 * w.angle.sin();
+                    w.x += 6.0 * w.angle.cos();
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::S),
                     ..
                 } => {
-                    w.y += 3.0 * w.angle.sin();
-                    w.x -= 3.0 * w.angle.cos();
+                    w.y += 6.0 * w.angle.sin();
+                    w.x -= 6.0 * w.angle.cos();
                 }
                 Event::MouseMotion {x, ..} => {
                     let dx = mouse_x-x;
@@ -342,8 +348,9 @@ fn main() {
             }
         }
 
-        let rifle_rect = Rect::new(400-40, 400, 85, 200); 
-        canvas.copy(&rifleTexture, None, rifle_rect);
+        let rifle_dest_rect = Rect::new(400, 350, 280, 400); 
+        let rifle_src_rect = Rect::new(0, 0, 142, 130);
+        canvas.copy(&rifleTexture, rifle_src_rect, rifle_dest_rect);
 
         let mut mx = 500;
         let mut my = 0;
