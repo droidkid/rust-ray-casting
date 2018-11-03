@@ -258,7 +258,6 @@ fn main() {
         .window("Rust Ray Casting", width, height)
         .position_centered()
         .borderless()
-        .fullscreen()
         .build()
         .unwrap();
 
