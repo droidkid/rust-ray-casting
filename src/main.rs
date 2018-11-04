@@ -215,14 +215,8 @@ fn main() {
 
     let mut w = World::new();
 
-    let wall1_texture_path = Path::new("res/bg_wood_light.png");
-    let texture1 = texture_creator.load_texture(&wall1_texture_path).unwrap();
-    let wall2_texture_path = Path::new("res/bg_wood_light.png");
-    let texture2 = texture_creator.load_texture(&wall2_texture_path).unwrap();
-    let rifle_texture_path = Path::new("res/rifle.png");
-    let rifleTexture = texture_creator.load_texture(&rifle_texture_path).unwrap();
-    let crosshair_path = Path::new("res/crosshair_red_small.png");
-    let crosshair = texture_creator.load_texture(&crosshair_path).unwrap();
+    let wall_texture_path = Path::new("res/bg_wood_light.png");
+    let mut wall_texture = texture_creator.load_texture(&wall_texture_path).unwrap();
 
     let mut mouse_x: i32 = 0;
 
@@ -280,25 +274,26 @@ fn main() {
         canvas.set_draw_color(Color::RGB(168, 100, 100));
         canvas.fill_rect(Rect::new(0, 300, 800, 300));
 
+        let mut max_height = 0;
+
         for i in 0..w.projection_width {
             let h = w.heights[i as usize];
+
+            let mut color_mod = h/2;
+
+            if (color_mod < 100) {
+                color_mod = 100;
+            }
+
+            wall_texture.set_color_mod(color_mod as u8, color_mod as u8, color_mod as u8);
+
             let dest_rect = Rect::new(799 - i as i32, 300 - (h / 2), 1, h as u32);
             let src_rect = Rect::new(w.edge_dist[i as usize] * 4, 0, 1, 512);
 
-            if w.wall_orient[i as usize] == 2 {
-                canvas.copy(&texture1, src_rect, dest_rect);
-            }
-            if w.wall_orient[i as usize] == 1 {
-                canvas.copy(&texture2, src_rect, dest_rect);
-            }
+            canvas.copy(&wall_texture, src_rect, dest_rect);
+
+            wall_texture.set_color_mod(0, 0, 0);
         }
-
-        let rifle_dest_rect = Rect::new(400, 350, 280, 400);
-        let rifle_src_rect = Rect::new(0, 0, 142, 130);
-        canvas.copy(&rifleTexture, rifle_src_rect, rifle_dest_rect);
-
-        let mut mx = 500;
-        let mut my = 0;
 
         canvas.present();
 
