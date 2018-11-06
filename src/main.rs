@@ -5,7 +5,7 @@ use sdl2::image::{LoadTexture, INIT_JPG, INIT_PNG};
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::{Canvas, RenderTarget, TextureCreator};
+use sdl2::render::{Canvas, Texture, RenderTarget, TextureCreator};
 use std::path::Path;
 
 use std::{thread, time};
@@ -15,10 +15,14 @@ mod math_util;
 const INF: f64 = 1e12;
 const INF_PAIR: (f64, f64) = (INF, INF);
 
-struct World {
+struct Player {
     x: f64,
     y: f64,
     ray_angle: f64,
+}
+
+struct World {
+    player: Player,
     fov_angle: f64,
     projection_width: u32,
     projection_dist: u32,
@@ -27,10 +31,12 @@ struct World {
     heights: Vec<i32>,
     edge_dist: Vec<i32>,
     wall_orient: Vec<i32>,
+    // Texture
+    wall_texture: Texture,
 }
 
 impl World {
-    fn new() -> World {
+    fn new<T:RenderTarget>(canvas: &mut Canvas<T>) -> World {
         let layout = vec![
             vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -47,11 +53,16 @@ impl World {
             vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ];
 
+        let texture_creator = canvas.texture_creator();
+        let wall_texture_path = Path::new("res/bg_wood_light.png");
+        let wall_texture = texture_creator.load_texture(&wall_texture_path).unwrap();
 
         World {
-            x: 224.0,
-            y: 481.0,
-            ray_angle: 60.0_f64.to_radians(),
+            player: Player {
+                x: 224.0,
+                y: 481.0,
+                ray_angle: 60.0_f64.to_radians(),
+            },
             fov_angle: 60.0_f64.to_radians(),
             projection_width: 800,
             projection_dist: 255,
@@ -60,6 +71,7 @@ impl World {
             heights: vec![0; 800],
             edge_dist: vec![0; 800],
             wall_orient: vec![0; 800],
+            wall_texture: wall_texture,
         }
     }
 
@@ -157,11 +169,11 @@ impl World {
     }
 
     fn update_heights(&mut self) {
-        let x = self.x as f64;
-        let y = self.y as f64;
+        let x = self.player.x as f64;
+        let y = self.player.y as f64;
 
         for i in 0..self.projection_width {
-            let angle = self.ray_angle - self.fov_angle / 2.0
+            let angle = self.player.ray_angle - self.fov_angle / 2.0
                 + self.fov_angle * (i as f64 / self.projection_width as f64);
             let (hx, hy) = self.calc_horizontal_intersection(x, y, angle);
             let hd = math_util::dist(x, y, hx, hy);
@@ -171,7 +183,7 @@ impl World {
 
             let mut d = hd.min(vd);
 
-            let beta = (self.ray_angle - angle);
+            let beta = (self.player.ray_angle - angle);
             d = d * beta.cos();
 
             let h = self.grid_size / d * self.projection_width as f64;
@@ -187,9 +199,11 @@ impl World {
         }
     }
 
-    fn draw(&mut self, width:i32, height:i32) {
-
+    fn draw(&mut self, width: i32, height: i32) {
+        
     }
+
+    fn update(&mut self) {}
 }
 
 fn main() {
@@ -213,7 +227,7 @@ fn main() {
 
     sdl_context.mouse().show_cursor(false);
 
-    let mut w = World::new();
+    let mut w = World::new(&canvas);
 
     let wall_texture_path = Path::new("res/bg_wood_light.png");
     let mut wall_texture = texture_creator.load_texture(&wall_texture_path).unwrap();
@@ -232,35 +246,35 @@ fn main() {
                     keycode: Some(Keycode::A),
                     ..
                 } => {
-                    w.x -= 6.0 * w.ray_angle.sin();
-                    w.y -= 6.0 * w.ray_angle.cos();
+                    w.player.x -= 6.0 * w.player.ray_angle.sin();
+                    w.player.y -= 6.0 * w.player.ray_angle.cos();
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::D),
                     ..
                 } => {
-                    w.x += 6.0 * w.ray_angle.sin();
-                    w.y += 6.0 * w.ray_angle.cos();
+                    w.player.x += 6.0 * w.player.ray_angle.sin();
+                    w.player.y += 6.0 * w.player.ray_angle.cos();
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::W),
                     ..
                 } => {
-                    w.y -= 6.0 * w.ray_angle.sin();
-                    w.x += 6.0 * w.ray_angle.cos();
+                    w.player.y -= 6.0 * w.player.ray_angle.sin();
+                    w.player.x += 6.0 * w.player.ray_angle.cos();
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::S),
                     ..
                 } => {
-                    w.y += 6.0 * w.ray_angle.sin();
-                    w.x -= 6.0 * w.ray_angle.cos();
+                    w.player.y += 6.0 * w.player.ray_angle.sin();
+                    w.player.x -= 6.0 * w.player.ray_angle.cos();
                 }
                 Event::MouseMotion { x, .. } => {
                     let dx = mouse_x - x;
                     mouse_x = x;
 
-                    w.ray_angle += (dx as f64 / 300.0) * std::f64::consts::PI;
+                    w.player.ray_angle += (dx as f64 / 300.0) * std::f64::consts::PI;
                 }
 
                 _ => {}
@@ -279,7 +293,7 @@ fn main() {
         for i in 0..w.projection_width {
             let h = w.heights[i as usize];
 
-            let mut color_mod = h/2;
+            let mut color_mod = h / 2;
 
             if (color_mod < 100) {
                 color_mod = 100;
