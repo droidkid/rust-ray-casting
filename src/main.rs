@@ -21,7 +21,7 @@ struct Player {
     ray_angle: f64,
 }
 
-struct World {
+struct World<'a> {
     player: Player,
     fov_angle: f64,
     projection_width: u32,
@@ -32,11 +32,11 @@ struct World {
     edge_dist: Vec<i32>,
     wall_orient: Vec<i32>,
     // Texture
-    wall_texture: Texture,
+    wall_texture: Texture<'a>,
 }
 
-impl World {
-    fn new<T:RenderTarget>(canvas: &mut Canvas<T>) -> World {
+impl<'a> World<'a> {
+    fn new<T>(texture_creator: &'a TextureCreator<T>) -> World<'a> {
         let layout = vec![
             vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -53,7 +53,6 @@ impl World {
             vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ];
 
-        let texture_creator = canvas.texture_creator();
         let wall_texture_path = Path::new("res/bg_wood_light.png");
         let wall_texture = texture_creator.load_texture(&wall_texture_path).unwrap();
 
@@ -129,7 +128,6 @@ impl World {
         };
 
         while !self.is_wall_grid(nx, ny) {
-            let (ngx, ngy) = self.convert_to_grid(nx, ny);
             nx += dx;
             ny += dy;
         }
@@ -161,7 +159,6 @@ impl World {
         };
 
         while !self.is_wall_grid(nx, ny) {
-            let (ngx, ngy) = self.convert_to_grid(nx, ny);
             nx += dx;
             ny += dy;
         }
@@ -199,11 +196,37 @@ impl World {
         }
     }
 
-    fn draw(&mut self, width: i32, height: i32) {
-        
+    fn draw<T:RenderTarget>(&mut self, canvas: &mut Canvas<T>, width: i32, height: i32) {
+
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.fill_rect(Rect::new(0, 0, width as u32, (height/2) as u32));
+        canvas.set_draw_color(Color::RGB(168, 100, 100));
+        canvas.fill_rect(Rect::new(0, height/2, width as u32, (height/2) as u32));
+
+        for i in 0..width{
+            let h = self.heights[i as usize];
+
+            let mut color_mod = h / 2;
+
+            if (color_mod < 100) {
+                color_mod = 100;
+            }
+
+            self.wall_texture.set_color_mod(color_mod as u8, color_mod as u8, color_mod as u8);
+
+            let dest_rect = Rect::new(width-1-i as i32, height/2 - (h / 2), 1, h as u32);
+            // TODO: GET SRC RECT FROM WALL_TEXTURE.
+            let src_rect = Rect::new(self.edge_dist[i as usize] * 4, 0, 1, 512);
+
+            canvas.copy(&self.wall_texture, src_rect, dest_rect);
+
+            self.wall_texture.set_color_mod(0, 0, 0);
+        }
     }
 
-    fn update(&mut self) {}
+    fn update(&mut self) {
+        self.update_heights();
+    }
 }
 
 fn main() {
@@ -227,11 +250,7 @@ fn main() {
 
     sdl_context.mouse().show_cursor(false);
 
-    let mut w = World::new(&canvas);
-
-    let wall_texture_path = Path::new("res/bg_wood_light.png");
-    let mut wall_texture = texture_creator.load_texture(&wall_texture_path).unwrap();
-
+    let mut w = World::new(&texture_creator);
     let mut mouse_x: i32 = 0;
 
     'running: loop {
@@ -281,33 +300,8 @@ fn main() {
             }
         }
 
-        w.update_heights();
-
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.fill_rect(Rect::new(0, 0, 800, 300));
-        canvas.set_draw_color(Color::RGB(168, 100, 100));
-        canvas.fill_rect(Rect::new(0, 300, 800, 300));
-
-        let mut max_height = 0;
-
-        for i in 0..w.projection_width {
-            let h = w.heights[i as usize];
-
-            let mut color_mod = h / 2;
-
-            if (color_mod < 100) {
-                color_mod = 100;
-            }
-
-            wall_texture.set_color_mod(color_mod as u8, color_mod as u8, color_mod as u8);
-
-            let dest_rect = Rect::new(799 - i as i32, 300 - (h / 2), 1, h as u32);
-            let src_rect = Rect::new(w.edge_dist[i as usize] * 4, 0, 1, 512);
-
-            canvas.copy(&wall_texture, src_rect, dest_rect);
-
-            wall_texture.set_color_mod(0, 0, 0);
-        }
+        w.update();
+        w.draw(&mut canvas, 800, 600);
 
         canvas.present();
 
