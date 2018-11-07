@@ -28,11 +28,15 @@ struct World<'a> {
     projection_dist: u32,
     layout: Vec<Vec<i32>>,
     grid_size: f64,
+
+    // Values related to drawing.
     heights: Vec<i32>,
     edge_dist: Vec<i32>,
     wall_orient: Vec<i32>,
+
     // Texture
     wall_texture: Texture<'a>,
+    floor_texture: Texture<'a>,
 }
 
 impl<'a> World<'a> {
@@ -56,6 +60,9 @@ impl<'a> World<'a> {
         let wall_texture_path = Path::new("res/bg_wood_light.png");
         let wall_texture = texture_creator.load_texture(&wall_texture_path).unwrap();
 
+        let floor_texture_path = Path::new("res/floor.jpeg");
+        let floor_texture = texture_creator.load_texture(&floor_texture_path).unwrap();
+
         World {
             player: Player {
                 x: 224.0,
@@ -71,6 +78,7 @@ impl<'a> World<'a> {
             edge_dist: vec![0; 800],
             wall_orient: vec![0; 800],
             wall_texture: wall_texture,
+            floor_texture: floor_texture,
         }
     }
 
@@ -172,19 +180,12 @@ impl<'a> World<'a> {
         for i in 0..self.projection_width {
             let angle = self.player.ray_angle - self.fov_angle / 2.0
                 + self.fov_angle * (i as f64 / self.projection_width as f64);
+
             let (hx, hy) = self.calc_horizontal_intersection(x, y, angle);
-            let hd = math_util::dist(x, y, hx, hy);
-
             let (vx, vy) = self.calc_vertical_intersection(x, y, angle);
+
+            let hd = math_util::dist(x, y, hx, hy);
             let vd = math_util::dist(x, y, vx, vy);
-
-            let mut d = hd.min(vd);
-
-            let beta = (self.player.ray_angle - angle);
-            d = d * beta.cos();
-
-            let h = self.grid_size / d * self.projection_width as f64;
-            self.heights[i as usize] = h as i32;
 
             if hd < vd {
                 self.wall_orient[i as usize] = 1;
@@ -193,34 +194,89 @@ impl<'a> World<'a> {
                 self.wall_orient[i as usize] = 2;
                 self.edge_dist[i as usize] = (vy as i32) % (self.grid_size as i32)
             };
+
+            // Calculate Straight line distance.
+            let mut d = hd.min(vd);
+            let beta = (self.player.ray_angle - angle);
+            d = d * beta.cos();
+
+            // Calculate Wall Height.
+            let h = self.grid_size / d * self.projection_width as f64;
+            self.heights[i as usize] = h as i32;
+
+
         }
+
     }
 
     fn draw<T:RenderTarget>(&mut self, canvas: &mut Canvas<T>, width: i32, height: i32) {
 
+        // Clear Screen. 
         canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.fill_rect(Rect::new(0, 0, width as u32, (height/2) as u32));
-        canvas.set_draw_color(Color::RGB(168, 100, 100));
-        canvas.fill_rect(Rect::new(0, height/2, width as u32, (height/2) as u32));
+        canvas.fill_rect(Rect::new(0, 0, width as u32, height as u32));
 
         for i in 0..width{
             let h = self.heights[i as usize];
+            let angle = self.player.ray_angle - self.fov_angle / 2.0
+                + self.fov_angle * (i as f64 / self.projection_width as f64);
+            let beta = (self.player.ray_angle - angle);
 
-            let mut color_mod = h / 2;
-
-            if (color_mod < 100) {
-                color_mod = 100;
-            }
-
-            self.wall_texture.set_color_mod(color_mod as u8, color_mod as u8, color_mod as u8);
-
+            // Wall Rects.
             let dest_rect = Rect::new(width-1-i as i32, height/2 - (h / 2), 1, h as u32);
-            // TODO: GET SRC RECT FROM WALL_TEXTURE.
             let src_rect = Rect::new(self.edge_dist[i as usize] * 4, 0, 1, 512);
 
             canvas.copy(&self.wall_texture, src_rect, dest_rect);
 
-            self.wall_texture.set_color_mod(0, 0, 0);
+            let mut draw_x = dest_rect.x();
+            let mut draw_end_y = dest_rect.y() + dest_rect.height() as i32;
+
+            let mut count = 50;
+
+            for y in (draw_end_y..height) {
+                // Coordinates on screen.
+                let y1 = y-height/2;
+                let y2 = height/2;
+                let x1 = self.projection_width;
+
+                let x2:f64 = x1 as f64 * (y2 as f64 / y1 as f64);
+
+                // Find Distance.
+                let actual_dist = x2 / beta.cos();
+
+                let mut floor_x:f64 = 0.0;
+                let mut floor_y:f64 = 0.0;
+
+                if math_util::is_facing_right(angle) && math_util::is_facing_up(angle) {
+                    floor_x = self.player.x + actual_dist * angle.cos();
+                    floor_y = self.player.y + actual_dist * angle.sin();
+                }
+                if !math_util::is_facing_right(angle) && math_util::is_facing_up(angle) {
+                    floor_x = self.player.x - actual_dist * angle.cos();
+                    floor_y = self.player.y + actual_dist * angle.sin();
+                }
+                if math_util::is_facing_right(angle) && !math_util::is_facing_up(angle) {
+                    floor_x = self.player.x + actual_dist * angle.cos();
+                    floor_y = self.player.y - actual_dist * angle.sin();
+                }
+                if !math_util::is_facing_right(angle) && !math_util::is_facing_up(angle) {
+                    floor_x = self.player.x - actual_dist * angle.cos();
+                    floor_y = self.player.y - actual_dist * angle.sin();
+                }
+
+
+                let src_rect = Rect::new(floor_x as i32 % 250, floor_y as i32 % 250, 1, 1);
+                let dest_rect = Rect::new(width-1-i as i32, y, 1, 1);
+
+                //println!("{:?} {} {}", actual_dist, floor_x, floor_y);
+
+                canvas.copy(&self.floor_texture, src_rect, dest_rect);
+
+                //count -= 50;
+                if (count < 0) {
+                    break;
+                }
+
+            }
         }
     }
 
@@ -294,6 +350,18 @@ fn main() {
                     mouse_x = x;
 
                     w.player.ray_angle += (dx as f64 / 300.0) * std::f64::consts::PI;
+                }
+                Event::KeyDown{
+                    keycode: Some(Keycode::Q),
+                    ..
+                } => {
+                    w.player.ray_angle += (5 as f64 / 300.0) * std::f64::consts::PI;
+                }
+                Event::KeyDown{
+                    keycode: Some(Keycode::E),
+                    ..
+                } => {
+                    w.player.ray_angle += (-5 as f64 / 300.0) * std::f64::consts::PI;
                 }
 
                 _ => {}
