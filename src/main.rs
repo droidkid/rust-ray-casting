@@ -230,8 +230,6 @@ impl<'a> World<'a> {
             let mut draw_x = dest_rect.x();
             let mut draw_end_y = dest_rect.y() + dest_rect.height() as i32;
 
-            let mut count = 50;
-
             for y in (draw_end_y..height) {
                 // Coordinates on screen.
                 let y1 = y-height/2;
@@ -246,35 +244,22 @@ impl<'a> World<'a> {
                 let mut floor_x:f64 = 0.0;
                 let mut floor_y:f64 = 0.0;
 
-                if math_util::is_facing_right(angle) && math_util::is_facing_up(angle) {
-                    floor_x = self.player.x + actual_dist * angle.cos();
-                    floor_y = self.player.y + actual_dist * angle.sin();
+                floor_x = self.player.x + actual_dist * angle.cos();
+                floor_y = self.player.y - actual_dist * angle.sin();
+
+                while (floor_x < 0.0) {
+                    floor_x += 256.0;
                 }
-                if !math_util::is_facing_right(angle) && math_util::is_facing_up(angle) {
-                    floor_x = self.player.x - actual_dist * angle.cos();
-                    floor_y = self.player.y + actual_dist * angle.sin();
-                }
-                if math_util::is_facing_right(angle) && !math_util::is_facing_up(angle) {
-                    floor_x = self.player.x + actual_dist * angle.cos();
-                    floor_y = self.player.y - actual_dist * angle.sin();
-                }
-                if !math_util::is_facing_right(angle) && !math_util::is_facing_up(angle) {
-                    floor_x = self.player.x - actual_dist * angle.cos();
-                    floor_y = self.player.y - actual_dist * angle.sin();
+                while floor_y < 0.0 {
+                    floor_y += 256.0;
                 }
 
-
-                let src_rect = Rect::new(floor_x as i32 % 250, floor_y as i32 % 250, 1, 1);
+                let src_rect = Rect::new(floor_x as i32 % 256, floor_y as i32 % 256, 1, 1);
                 let dest_rect = Rect::new(width-1-i as i32, y, 1, 1);
 
                 //println!("{:?} {} {}", actual_dist, floor_x, floor_y);
 
                 canvas.copy(&self.floor_texture, src_rect, dest_rect);
-
-                //count -= 50;
-                if (count < 0) {
-                    break;
-                }
 
             }
         }
