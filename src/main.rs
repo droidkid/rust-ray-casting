@@ -201,10 +201,8 @@ impl<'a> World<'a> {
             d = d * beta.cos();
 
             // Calculate Wall Height.
-            let h = self.grid_size / d * self.projection_width as f64;
+            let h = self.grid_size / d * 692.0 as f64;
             self.heights[i as usize] = h as i32;
-
-
         }
 
     }
@@ -233,8 +231,8 @@ impl<'a> World<'a> {
             for y in (draw_end_y..height) {
                 // Coordinates on screen.
                 let y1 = y-height/2;
-                let y2 = height/2;
-                let x1 = self.projection_width;
+                let y2 = self.grid_size/2.0;
+                let x1 = 692;
 
                 let x2:f64 = x1 as f64 * (y2 as f64 / y1 as f64);
 
@@ -248,13 +246,13 @@ impl<'a> World<'a> {
                 floor_y = self.player.y - actual_dist * angle.sin();
 
                 while (floor_x < 0.0) {
-                    floor_x += 256.0;
+                    floor_x += 64.0;
                 }
                 while floor_y < 0.0 {
-                    floor_y += 256.0;
+                    floor_y += 64.0;
                 }
 
-                let src_rect = Rect::new(floor_x as i32 % 256, floor_y as i32 % 256, 1, 1);
+                let src_rect = Rect::new((floor_x * 4.0) as i32 % 256, (floor_y*4.0) as i32 % 256, 1, 1);
                 let dest_rect = Rect::new(width-1-i as i32, y, 1, 1);
 
                 //println!("{:?} {} {}", actual_dist, floor_x, floor_y);
